@@ -24,7 +24,7 @@ Py++ is a Python-inspired transpiler language that compiles to C++ for fast exec
 
 ## Example: Guess the Number Game
 
-A number guessing game using Py++:
+A number guessing game using Py++
 
 ```cpp
 #include <windows.h>
