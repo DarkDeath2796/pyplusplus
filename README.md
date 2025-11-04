@@ -4,6 +4,10 @@ Py++ is a Python-inspired transpiler language that compiles to C++ for fast exec
 
 ---
 
+## Requires g++
+
+---
+
 ## Features
 
 - **Python-like readability:** Block-based structure using indentation and parentheses, `imp` for imports, and easy variable declarations.
