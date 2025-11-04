@@ -118,7 +118,7 @@ int main() {
 
 1. **Install the transpiler:**
     ```
-    python py++.py --setup ~/.local/bin
+    py++(.exe on Windows) --setup <install path>
     ```
     Add the install path to your `PATH` if not already.
 
