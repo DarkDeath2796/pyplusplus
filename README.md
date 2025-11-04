@@ -26,7 +26,7 @@ Py++ is a Python-inspired transpiler language that compiles to C++ for fast exec
 
 A number guessing game using Py++:
 
-```py
+```cpp
 #include <windows.h>
 imp std/random
 imp std/time
@@ -53,6 +53,43 @@ int main() {
 			time_sleep(1)
 		)
 	)
+}
+```
+
+---
+
+## Another example: Password generator 
+
+A simple password generator
+
+```cpp
+imp std/random
+
+
+const std::string letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+
+%> function to get a random letter/number
+char get_random_letter() {
+	return letters[random_randint(0, letters.length() - 1)]
+}
+
+std::string generate_pwd(int length) {
+	std::string pwd = ""
+
+	repeat length (
+	    pwd += get_random_letter()
+	)
+	return pwd
+}
+
+
+int main() {
+	int length
+
+	numinput("password length: ", length)
+
+	print(generate_pwd(length))
 }
 ```
 
