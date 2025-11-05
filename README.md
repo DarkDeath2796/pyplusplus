@@ -111,7 +111,7 @@ int main() {
     - `input(prompt, var)` reads a line  
     - `numinput(prompt, var)` reads a number  
 - **Functions:** Standard C++-style function signatures, but you can use Pythonic simplicity.
-- **Builtin macros:** \_\_argcv\_\_ becomes "int argc, char** argv"
+- **Builtin macros:** `__argcv__` becomes `int argc, char** argv`
 
 ---
 
