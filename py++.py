@@ -71,17 +71,13 @@ void wait_until(double target) {
     if (diff > 0) sleep(diff);
 }
 ''',
-        "modules/std/__init__.pypp": '''
-imp time
-imp random
-''', 
         "modules/std/random.pypp": '''
 #include <cmath>
 imp time
 
 
 double rand01() {
-    double __seed = fmod(time_now_() * 6364136223846793005.0 + 1.0, 1e9)
+    double __seed = fmod(time_now_() * 6364136223846793005.0 * time_since(1) + 1.0, 1e9)
     return fmod(__seed / 1e9, 1.0)
 }
 
@@ -216,12 +212,15 @@ def safe_replace(line: str, name: str, replacement: str) -> str:
         i += 1
     return new_line
 
-def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base_dir: Optional[str] = None, is_main: bool = True) -> str:
+def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base_dir: Optional[str] = None, is_main: bool = True):
     if loaded is None:
         loaded = set()
 
+    # exe dir (global modules)
+    exe_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__))
+
     if base_dir is None:
-        base_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__))
+        base_dir = os.path.dirname(os.path.abspath(path))
 
     norm_path = os.path.abspath(path)
     if norm_path in loaded:
@@ -248,23 +247,23 @@ def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base
     for line in lines:
         stripped = line.strip()
 
-        # handle imports
         if stripped.startswith("imp "):
             imp_target = stripped[4:].strip()
-            if "/" not in imp_target and os.path.isdir(os.path.join(base_dir, imp_target)):
-                submod_path = os.path.join(base_dir, imp_target, "__init__.pypp")
-            else:
+
+            # 1️⃣ check exe_dir/modules
+            submod_path = os.path.join(exe_dir, "modules", imp_target + ".pypp")
+            # 2️⃣ fallback to local directory of current file
+            if not os.path.exists(submod_path):
                 submod_path = os.path.join(base_dir, imp_target + ".pypp")
-                if not os.path.exists(submod_path):
-                    submod_path = os.path.join(base_dir, "modules", imp_target + ".pypp")
 
             if os.path.exists(submod_path):
                 out_lines.append(load_with_imports_renamed(submod_path, loaded, os.path.dirname(submod_path), is_main=False))
             else:
-                out_lines.append(f"// [Py++] Warning: module '{imp_target}' not found")
+                print(f"[Py++] Warning: module '{imp_target}' not found in global or local paths")
+
             continue
 
-        # detect functions
+        # detect funcs
         if mod_name:
             m = re.match(
                 r'^(?:const\s+)?(int|float|double|char|bool|void|auto|std::string|std::vector<[^>]+>)\s+([a-zA-Z_]\w*)\s*\(.*\)\s*\{?$',
@@ -273,7 +272,7 @@ def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base
             if m:
                 func_names.append(m.group(2))
 
-        # detect global variables
+        # detect globals
         if mod_name:
             v = re.match(
                 r'^(?:const\s+)?(int|float|double|char|bool|auto|std::string|std::vector<[^>]+>)\s+([a-zA-Z0-9_]\w*)(\s*)?(=.*)?$',
@@ -286,7 +285,6 @@ def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base
 
     combined = "\n".join(out_lines)
 
-    # rename both functions and vars
     if mod_name and (func_names or var_names):
         all_symbols = func_names + var_names
         for name in all_symbols:
@@ -306,8 +304,10 @@ def preprocess_defines(source: str) -> str:
     define_pattern = re.compile(r"^define\s+([A-Za-z_]\w*)(?:\((.*?)\))?\s+(.+)$")
     defines = {}
 
+    source = ["define __argcv__ int argc, char** argv"] + source.splitlines()
+
     lines = []
-    for line in source.splitlines():
+    for line in source:
         m = define_pattern.match(line.strip())
         if m:
             name, args_str, value = m.groups()
@@ -340,6 +340,40 @@ def preprocess_defines(source: str) -> str:
 
     return processed
 
+def expand_ranges_outside_strings(src: str) -> str:
+    result = ""
+    in_str = False
+    quote_char = ""
+    i = 0
+    while i < len(src):
+        c = src[i]
+
+        # toggle string mode
+        if c in ('"', "'"):
+            if not in_str:
+                in_str = True
+                quote_char = c
+            elif src[i - 1] != '\\' and c == quote_char:
+                in_str = False
+            result += c
+            i += 1
+            continue
+
+        if not in_str:
+            # detect pattern like 3..8:2
+            m = re.match(r"([0-9-]+)\s*\.\.\s*([0-9-]+)(?::([0-9-]+))?", src[i:])
+            if m:
+                a, b = m.group(1), m.group(2)
+                c = m.group(3) or 1
+                # replace with range-based initializer list
+                result += "{" + ",".join(str(j) for j in range(int(a), int(b)+1 if int(b) > 0 else int(b)-1, int(c))) + "}"
+                i += m.end()
+                continue
+
+        result += c
+        i += 1
+    return result
+
 # ---------------------------------------------------------------------------
 #  Block and line transpiler
 # ---------------------------------------------------------------------------
@@ -368,7 +402,7 @@ def split_commas(s: str) -> List[str]:
 # ---------------------------------------------------------------------------
 
 def transpile_paren_blocks_to_cpp(source: str) -> str:
-    lines = source.splitlines()
+    lines = expand_ranges_outside_strings(source).splitlines()
     out_lines: List[str] = [
         '#include <iostream>',
         '#include <cstdint>',
