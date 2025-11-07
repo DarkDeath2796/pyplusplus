@@ -1,95 +1,116 @@
 # Py++
 
-Py++ is a Python-inspired transpiler language that compiles to C++ for fast execution and easy integration with C++ libraries. It combines the concise, beginner-friendly syntax of Python with the power and performance of C++. Py++ source files typically use the `.pypp` extension.
+**Py++** is a Python-inspired transpiler that compiles to **C++**, combining Python’s readability with C++’s speed and low-level power. Py++ source files use the `.pypp` extension.  
 
 ---
 
-## Requires g++
+## Requirements
+
+- **g++** compiler  
 
 ---
 
 ## Features
 
-- **Python-like readability:** Block-based structure using indentation and parentheses, `imp` for imports, and easy variable declarations.
-- **Direct C++ integration:** You can mix C++ code and standard library usage for advanced performance and access to system features.
-- **Easy modularity:** `imp modulename` syntax for importing your own code or provided modules.
-- **Macros and defines:** Simple define and macro expansion supports flexible metaprogramming.
-- **Useful built-in modules:**
-    - `std/time`: Timing utilities, sleep, formatted time.
-    - `std/sys`: System interaction (like username detection).
-    - `std/random`: Random number generation (seeded from clock).
-    - `fileOps`: File reading/writing helpers.
+- **Pythonic readability:** Block-based structure using indentation and `end` to close blocks, `imp` for imports, and simple variable declarations.  
+- **Direct C++ integration:** Mix C++ code with Py++ for performance and system access.  
+- **Modular code:** `imp modulename` imports modules or your own code.  
+- **Macros & defines:** Flexible metaprogramming using `define` and other macros.  
+- **Built-in modules:**
+    - `std/time` — timing utilities, sleep, formatted time  
+    - `std/sys` — system interaction (e.g., username)  
+    - `std/random` — random number generation (seeded from clock)  
+    - `std/fileOps` — file reading/writing helpers
+    - `std/strOps` — string operations like upper/lower
 
 ---
 
-## Example: Guess the Number Game
-
-A number guessing game using Py++
+## Example: Guess the Number
 
 ```cpp
-#include <windows.h>
 imp std/random
 imp std/time
 imp std/sys
 
 int main() {
-	SetConsoleOutputCP(CP_UTF8);
+	print("Guess the Number Game\n\n")
 
-	print("DISCLAIMER: this game is not recommended for very very VERY sensitive people. If you play, you do so at your own risk!\n\n")
-
-	int guess
-	int len
+	int guess, len
 	numinput("Enter the length of random numbers: ", len)
-	forever (
-	    numinput("Guess a " << len << " digits long number: ", guess)
+
+	forever
+	    numinput("Guess a " << len << "-digit number: ", guess)
 	    int num = random_randlen(len)
 
-	    if guess == num (
-			print("wooo, you guessed correctly!\n")
-			time_sleep(1)
-		)
-		else (
-			print("booo, you looser ew, you couldnt look a couple of seconds into the future and see that the number was ", num, "? ", sys_get_username(), ", you are a failure...\n")
-			time_sleep(1)
-		)
-	)
+	    if guess == num
+	        print("You guessed correctly!\n")
+	        time_sleep(1)
+	    else
+	        print("Wrong! The number was ", num, ", ", sys_get_username(), ".\n")
+	        time_sleep(1)
+	    end
+	end
 }
-```
+````
 
 ---
 
-## Another example: Password generator 
-
-A simple password generator
+## Example: Password Generator
 
 ```cpp
 imp std/random
+imp std/strOps
+imp std/fileOps
+imp std/time
+
+define random_letter letters[random_randint(0, letters.length() - 1)]
 
 
 const std::string letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 
-%> function to get a random letter/number
-char get_random_letter() {
-	return letters[random_randint(0, letters.length() - 1)]
-}
+strvec generate_pwds(int length, int amount) {
+	strvec pwds = {};
 
-std::string generate_pwd(int length) {
-	std::string pwd = ""
+	repeat amount 
+		std::string pwd = ""
 
-	repeat length (
-	    pwd += get_random_letter()
-	)
-	return pwd
+		repeat length 
+		    pwd += random_letter
+		end
+
+		pwds.push_back(pwd)
+	end
+
+	return pwds
 }
 
 
 int main() {
 	int length
+	int amount
 
 	numinput("password length: ", length)
+	numinput("amount: ", amount)
 
-	print(generate_pwd(length))
+	double start = time_now_()
+	strvec pwds = generate_pwds(length, amount)
+	double time_taken = time_since(start)
+
+	foreach pwd pwds
+		print(pwd, "\n")
+	end
+
+	std::string save
+	input("Save? Y/n: ", save)
+
+	if strOps_lower(save) == "y"
+        foreach pwd pwds
+			fileOps_appnd_to_file("passwords.txt", pwd+"\n")
+		end
+		print("done!")
+	end
+	print("\nTook: ", time_taken, "s")
 }
 ```
 
@@ -97,70 +118,100 @@ int main() {
 
 ## Language Overview
 
-- **Variables:** `int x`, `double y = 3.14`, like C++
-- **Blocks:** Use parenthesis `(` and close with `)` instead of colons and indentation.
-- **Control Flow:**
-    - `if cond ( ... )`
-    - `else ( ... )`
-    - `elif cond ( ... )`
-    - `repeat N ( ... )` — repeat N times
-    - `forever ( ... )` — infinite loop
-    - `foreach item array ( ... )` — iterate over iterable
-- **IO:**  
-    - `print(...)` for output  
-    - `input(prompt, var)` reads a line  
-    - `numinput(prompt, var)` reads a number  
-- **Functions:** Standard C++-style function signatures, but you can use Pythonic simplicity.
-- **Builtin macros:** `__argcv__` becomes `int argc, char** argv`
+* **Variables:**
+
+  ```cpp
+  int x
+  double y = 3.14
+  strvec names = {}
+  vec<int> numbers = 0..10
+  ```
+* **Blocks:** Open a block with indentation, close with `end`.
+* **Control Flow:**
+
+  ```cpp
+  if cond
+      ...
+  end
+
+  else
+      ...
+  end
+
+  repeat N
+      ...
+  end
+
+  forever
+      ...
+  end
+
+  foreach item array
+      ...
+  end
+  ```
+* **Input/Output:**
+
+  * `print(...)` — output text
+  * `input(prompt, var)` — read string
+  * `numinput(prompt, var)` — read number
+* **Functions:** C++-style signatures, but can use Pythonic simplicity.
+* **Built-in macros:**
+  `__argcv__` expands to `int argc, char** argv`
 
 ---
 
 ## Getting Started
 
 1. **Install the transpiler:**
-    ```
-    py++(.exe on Windows) --setup <install path>
-    ```
-    Add the install path to your `PATH` if not already.
 
-2. **Write your code:**  
-    Save your `.pypp` files. You can import modules or use C++ directly.
+   ```bash
+   py++(.exe on Windows) --setup <install path>
+   ```
 
-3. **Compile to native code:**
-    ```
-    py++ yourfile.pypp
-    ```
-    Outputs a compiled native binary (e.g. `yourfile.exe` on Windows).
+   Make sure the path is added to your `PATH`.
+
+2. **Write your code:** Save `.pypp` files, import modules, or use C++ directly.
+
+3. **Compile:**
+
+   ```bash
+   py++ yourfile.pypp
+   ```
+
+   Produces a native binary (e.g., `yourfile.exe` on Windows).
 
 4. **Run your program:**
-    ```
-    ./yourfile    # or yourfile.exe on Windows
-    ```
+
+   ```bash
+   ./yourfile  # or yourfile.exe
+   ```
 
 ---
 
 ## Motivation
 
-Py++ is designed for people who like:
-- Python-style syntax and simplicity
-- Access to C++ performance
-- Easy C++ code reuse or low-level systems tasks
+Py++ is for anyone who wants:
+
+* Python-style readability
+* C++ performance
+* Easy reuse of C++ libraries or low-level system access
 
 ---
 
 ## FAQ
 
-- **Can I use C++ code directly?**  
-  Yes! You can use any C++ inside your `.pypp` just as in a C++ file.
+* **Can I use C++ code directly?**
+  Yes, full C++ syntax is supported.
 
-- **Can I import Python libraries?**  
-  No, `imp` refers to Py++ or C++ modules.
+* **Can I import Python libraries?**
+  No, `imp` imports Py++ or C++ modules only.
 
-- **Can I use standard C++ includes?**  
-  Yes, just use `#include <...>` at the top of your file.
+* **Can I use standard C++ includes?**
+  Yes, just use `#include <...>` at the top.
 
-- **Is this a Python transpiler?**  
-  No, it's a new language inspired by Python, targeting C++ as a backend.
+* **Is Py++ a Python transpiler?**
+  No, it’s a new language inspired by Python, targeting C++.
 
 ---
 
@@ -170,4 +221,4 @@ MIT License
 
 ---
 
-> ⚡ Py++: Pythonic syntax, C++ speed!
+> ⚡ Py++ — Pythonic syntax, C++ speed!
