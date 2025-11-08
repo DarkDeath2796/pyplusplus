@@ -27,7 +27,7 @@
 
 ## Example: Guess the Number
 
-```cpp
+```rust
 imp std/random
 imp std/time
 imp std/sys
@@ -60,7 +60,7 @@ end
 
 ## Example: Password Generator
 
-```cpp
+```rust
 imp std/random
 imp std/strOps
 imp std/fileOps
