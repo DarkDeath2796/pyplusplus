@@ -32,25 +32,28 @@ imp std/random
 imp std/time
 imp std/sys
 
-int main() {
-	print("Guess the Number Game\n\n")
+fn main() -> int
+	SetConsoleOutputCP(CP_UTF8)
 
-	int guess, len
+	print("DISCLAIMER: this game is not recommended for very very VERY sensitive people. If you play, you do so at your own risk!\n\n")
+
+	int guess
+	int len
 	numinput("Enter the length of random numbers: ", len)
 
-	forever
-	    numinput("Guess a " << len << "-digit number: ", guess)
+	forever 
+	    numinput("Guess a " + std::to_string(len) + "-digit number: ", guess)
 	    int num = random_randlen(len)
 
 	    if guess == num
-	        print("You guessed correctly!\n")
-	        time_sleep(1)
-	    else
-	        print("Wrong! The number was ", num, ", ", sys_get_username(), ".\n")
-	        time_sleep(1)
-	    end
+			print("wooo, you guessed correctly!\n")
+			time_sleep(1)
+		else
+			print("booo, you loser ew—you couldn’t look a few seconds into the future and see that the number was ", num, "? ", sys_get_username(), ", you are a failure...\n")
+			time_sleep(1)
+		end
 	end
-}
+end
 ````
 
 ---
@@ -66,10 +69,10 @@ imp std/time
 define random_letter letters[random_randint(0, letters.length() - 1)]
 
 
-const std::string letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+std::string letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 
-strvec generate_pwds(int length, int amount) {
+fn generate_pwds(int length, int amount) -> strvec
 	strvec pwds = {};
 
 	repeat amount 
@@ -83,19 +86,25 @@ strvec generate_pwds(int length, int amount) {
 	end
 
 	return pwds
-}
+end
 
 
-int main() {
+fn main() -> int
 	int length
 	int amount
+	std::string add_chars
 
 	numinput("password length: ", length)
 	numinput("amount: ", amount)
+	input("add special characters (blank to skip): ", add_chars)
+
+	letters += add_chars
 
 	double start = time_now_()
 	strvec pwds = generate_pwds(length, amount)
 	double time_taken = time_since(start)
+	
+	print("\nTook: ", time_taken, "s\n")
 
 	foreach pwd pwds
 		print(pwd, "\n")
@@ -110,8 +119,7 @@ int main() {
 		end
 		print("done!")
 	end
-	print("\nTook: ", time_taken, "s")
-}
+end
 ```
 
 ---
@@ -149,13 +157,17 @@ int main() {
   foreach item array
       ...
   end
+
+  fn function_name(...) -> return_type
+      ...
+  end
   ```
 * **Input/Output:**
 
   * `print(...)` — output text
   * `input(prompt, var)` — read string
   * `numinput(prompt, var)` — read number
-* **Functions:** C++-style signatures, but can use Pythonic simplicity.
+* **Functions:** `fn function_name(...) -> return_type`, close with `end`
 * **Built-in macros:**
   `__argcv__` expands to `int argc, char** argv`
 
