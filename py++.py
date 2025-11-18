@@ -233,11 +233,10 @@ imp std/sys.pypp
     if target_dir not in paths:
         if os.name == "nt":
             add_to_path_win(target_dir)
+            print(f"[+] Added {target_dir} to PATH")
         else:
-            bashrc = os.path.expanduser("~/.bashrc")
-            with open(bashrc, "a", encoding="utf-8") as f:
-                f.write(f'\nexport PATH="$PATH:{target_dir}"\n')
-        print(f"[+] Added {target_dir} to PATH")
+            print(f"[*] Add {target_dir} to PATH with 'export PATH={target_dir}:$PATH'")
+            print("Sorry, adding to PATH is not supported on this platform :(")
     else:
         print(f"[*] {target_dir} already in PATH, skipping")
 
@@ -758,6 +757,10 @@ end
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: py++ <file>")
+        sys.exit(1)
+        
     if "--setup" in sys.argv:
         i = sys.argv.index("--setup")
         if i + 1 >= len(sys.argv):
