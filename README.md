@@ -1,36 +1,36 @@
 # Py++
 
-**Py++** is a Python-inspired transpiler that compiles to **C++**, combining Python’s readability with C++’s speed and low-level power. Py++ source files use the `.pypp` extension.  
+**Py++** is a Python-inspired transpiler that compiles to **C++**, combining Python’s readability with C++’s speed and low-level power. Py++ source files use the `.pypp` extension.
 
 ---
 
 ## Requirements
 
-- **g++** compiler  
+- **g++** compiler
 
 ---
 
 ## Features
 
-- **Pythonic readability:** Block-based structure using indentation and `end` to close blocks, `imp` for imports, and simple variable declarations.  
-- **Direct C++ integration:** Mix C++ code with Py++ for performance and system access.  
-- **Modular code:** `imp modulename` imports modules or your own code.  
-- **Macros & defines:** Flexible metaprogramming using `define` and other macros.  
+- **Pythonic readability:** Block-based structure using indentation and `end` to close blocks, `imp` for imports, and simple variable declarations.
+- **Direct C++ integration:** Mix C++ code with Py++ for performance and system access.
+- **Modular code:** `imp modulename` imports modules or your own code.
+- **Macros & defines:** Flexible metaprogramming using `define` and other macros.
 - **Built-in modules:**
-    - `std/time` — timing utilities, sleep, formatted time  
-    - `std/sys` — system interaction (e.g., username)  
-    - `std/random` — random number generation (seeded from clock)  
-    - `std/fileOps` — file reading/writing helpers
-    - `std/strOps` — string operations like upper/lower
+  - `std/time` — timing utilities, sleep, formatted time
+  - `std/sys` — system interaction (e.g., username)
+  - `std/random` — random number generation (seeded from clock)
+  - `std/fileOps` — file reading/writing helpers
+  - `std/strOps` — string operations like upper/lower
 
 ---
 
 ## Example: Guess the Number
 
 ```rust
-imp std/random
-imp std/time
-imp std/sys
+imp std/random.pypp
+imp std/time.pypp
+imp std/sys.pypp
 
 fn main() -> int
 	SetConsoleOutputCP(CP_UTF8)
@@ -41,7 +41,7 @@ fn main() -> int
 	int len
 	numinput("Enter the length of random numbers: ", len)
 
-	forever 
+	forever
 	    numinput("Guess a " + std::to_string(len) + "-digit number: ", guess)
 	    int num = random_randlen(len)
 
@@ -54,17 +54,14 @@ fn main() -> int
 		end
 	end
 end
-````
+```
 
 ---
 
 ## Example: Password Generator
 
 ```rust
-imp std/random
-imp std/strOps
-imp std/fileOps
-imp std/time
+imp std
 
 define random_letter letters[random_randint(0, letters.length() - 1)]
 
@@ -75,10 +72,10 @@ std::string letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234
 fn generate_pwds(int length, int amount) -> strvec
 	strvec pwds = {};
 
-	repeat amount 
+	repeat amount
 		std::string pwd = ""
 
-		repeat length 
+		repeat length
 		    pwd += random_letter
 		end
 
@@ -103,7 +100,7 @@ fn main() -> int
 	double start = time_now_()
 	strvec pwds = generate_pwds(length, amount)
 	double time_taken = time_since(start)
-	
+
 	print("\nTook: ", time_taken, "s\n")
 
 	foreach pwd pwds
@@ -126,7 +123,7 @@ end
 
 ## Language Overview
 
-* **Variables:**
+- **Variables:**
 
   ```cpp
   int x
@@ -134,8 +131,9 @@ end
   strvec names = {}
   vec<int> numbers = 0..10
   ```
-* **Blocks:** Open a block with indentation, close with `end`.
-* **Control Flow:**
+
+- **Blocks:** Open a block with indentation, close with `end`.
+- **Control Flow:**
 
   ```cpp
   if cond
@@ -162,14 +160,19 @@ end
       ...
   end
   ```
-* **Input/Output:**
 
-  * `print(...)` — output text
-  * `input(prompt, var)` — read string
-  * `numinput(prompt, var)` — read number
-* **Functions:** `fn function_name(...) -> return_type`, close with `end`
-* **Built-in macros:**
+- **Input/Output:**
+
+  - `print(...)` — output text
+  - `input(prompt, var)` — read string
+  - `numinput(prompt, var)` — read number
+
+- **Functions:** `fn function_name(...) -> return_type`, close with `end`
+- **Built-in macros:**
   `__argcv__` expands to `int argc, char** argv`
+
+- **Assertions:**
+  `assert: condition` — throws an error if `condition` is false
 
 ---
 
@@ -205,24 +208,24 @@ end
 
 Py++ is for anyone who wants:
 
-* Python-style readability
-* C++ performance
-* Easy reuse of C++ libraries or low-level system access
+- Python-style readability
+- C++ performance
+- Easy reuse of C++ libraries or low-level system access
 
 ---
 
 ## FAQ
 
-* **Can I use C++ code directly?**
+- **Can I use C++ code directly?**
   Yes, full C++ syntax is supported.
 
-* **Can I import Python libraries?**
+- **Can I import Python libraries?**
   No, `imp` imports Py++ or C++ modules only.
 
-* **Can I use standard C++ includes?**
+- **Can I use standard C++ includes?**
   Yes, just use `#include <...>` at the top.
 
-* **Is Py++ a Python transpiler?**
+- **Is Py++ a Python transpiler?**
   No, it’s a new language inspired by Python, targeting C++.
 
 ---
