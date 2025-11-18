@@ -1,5 +1,5 @@
 # Folders
-test_subjects/*
+test_subjects/*.pypp
 build
 dist
 
@@ -8,3 +8,5 @@ dist
 .gitattributes
 .gitmodules
 build.sh
+build.bat
+icon.ico
