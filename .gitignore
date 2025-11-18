@@ -1,9 +1,10 @@
 # Folders
-./test_subjects/*
-./build
-./dist
+test_subjects/*
+build
+dist
 
 # Files
-./.gitignore
-./.gitattributes
-./.gitmodules
+.gitignore
+.gitattributes
+.gitmodules
+build.sh
