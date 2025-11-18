@@ -1,0 +1,9 @@
+# Folders
+./test_subjects
+./build
+./dist
+
+# Files
+./.gitignore
+./.gitattributes
+./.gitmodules
