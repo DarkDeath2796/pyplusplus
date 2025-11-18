@@ -1,17 +1,40 @@
-import os, re, sys, subprocess, shutil
-from typing import List, Dict, Set, Optional
+import os
+import re
+import sys
+import subprocess
+import shutil
+import uuid
+from typing import List, Set, Optional
+
+
+def print_progress(done: int, total: int) -> None:
+    bar_length = 60
+    filled_length = int(round(done / total * bar_length))
+    percent = round(done / total * 100, 2)
+    bar = '>' * filled_length + ' ' * (bar_length - filled_length)
+    sys.stdout.write(f'\r[{bar}] {percent}%')
+    sys.stdout.flush()
+
+    if done == total:
+        sys.stdout.write('\n')
+
 
 def add_to_path_win(target_dir: str):
-    subprocess.run([
-        "powershell", "-Command",
-        f'[Environment]::SetEnvironmentVariable("Path", $env:Path + ";{target_dir}", "User")'
-    ], shell=True)
+    subprocess.run(
+        [
+            "powershell",
+            "-Command",
+            f'[Environment]::SetEnvironmentVariable("Path", $env:Path + ";{target_dir}", "User")',
+        ],
+        shell=True,
+    )
+
 
 def setup_install(target_dir: str):
     os.makedirs(os.path.join(target_dir, "modules"), exist_ok=True)
 
     builtins = {
-        "modules/std/fileOps.pypp": '''
+        "modules/std/fileOps.pypp": """
 #include <fstream>
 #include <vector>
 
@@ -45,8 +68,8 @@ fn appnd_to_file(const std::string &path, const std::string &content) -> void
     std::ofstream f(path, std::ios::app)
     f << content
 end
-''',
-        "modules/std/time.pypp": '''
+""",
+        "modules/std/time.pypp": """
 #include <chrono>
 #include <thread>
 #include <ctime>
@@ -80,10 +103,10 @@ fn wait_until(double target) -> void
         sleep(diff)
     end
 end
-''',
-        "modules/std/random.pypp": '''
+""",
+        "modules/std/random.pypp": """
 #include <cmath>
-imp time
+imp std/time.pypp
 
 
 fn rand01() -> double
@@ -110,8 +133,8 @@ fn randlen(int length) -> int
     }
     return num
 end
-''', 
-        "modules/std/sys.pypp": '''
+""",
+        "modules/std/sys.pypp": """
 #include <string>
 
 #ifdef _WIN32
@@ -135,11 +158,23 @@ fn get_username() -> std::string
     return user ? std::string(user) : "???"
 #endif
 end
-''', 
-        "modules/std/strOps.pypp": '''
+""",
+        "modules/std/strOps.pypp": """
 #include <algorithm>
 #include <cctype>
 #include <string>
+
+fn trim(const std::string& s) -> std::string
+    size_t start = 0
+    while start < s.size() && std::isspace(s[start]) 
+        start++
+    end
+    size_t end = s.size()
+    while end > start && std::isspace(s[end - 1])
+        end--
+    end
+    return s.substr(start, end - start)
+end
 
 fn lower(std::string s) -> std::string
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
@@ -161,7 +196,14 @@ fn split(const std::string& s, char delimiter) -> strvec
     result.push_back(s.substr(start));
     return result;
 end
-'''
+""",
+        "modules/std/__init__.pypp": """
+imp std/fileOps.pypp
+imp std/time.pypp
+imp std/random.pypp
+imp std/strOps.pypp
+imp std/sys.pypp
+""",
     }
 
     # Write built-in modules
@@ -172,7 +214,7 @@ end
             f.write(content)
 
     # Detect mode (exe or script)
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         self_path = sys.executable
     else:
         self_path = os.path.abspath(sys.argv[0])
@@ -202,21 +244,24 @@ end
     print(f"\n[+] Py++ installed to: {target_dir}")
     print("[*] Restart your terminal to use the 'py++' command globally!\n")
 
+
 def check_gpp_installed() -> bool:
     try:
         result = subprocess.run(
             ["g++", "--version"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
         return result.returncode == 0
     except FileNotFoundError:
         return False
 
+
 # ---------------------------------------------------------------------------
 #  Import logic: recursively load modules with renamed symbols
 # ---------------------------------------------------------------------------
+
 
 def safe_replace(line: str, name: str, replacement: str) -> str:
     if line.lstrip().startswith("%>"):  # full-line comment
@@ -227,7 +272,7 @@ def safe_replace(line: str, name: str, replacement: str) -> str:
     in_str = False
     while i < len(line):
         c = line[i]
-        if c == '"' and (i == 0 or line[i-1] != '\\'):
+        if c == '"' and (i == 0 or line[i - 1] != "\\"):
             in_str = not in_str
             new_line += c
             i += 1
@@ -238,10 +283,15 @@ def safe_replace(line: str, name: str, replacement: str) -> str:
             continue
 
         # try to match the function name as a standalone token
-        if line[i:i+len(name)] == name:
-            before = line[i-1] if i > 0 else " "
-            after = line[i+len(name)] if i+len(name) < len(line) else " "
-            if not before.isalnum() and before != '_' and not after.isalnum() and after != '_':
+        if line[i : i + len(name)] == name:
+            before = line[i - 1] if i > 0 else " "
+            after = line[i + len(name)] if i + len(name) < len(line) else " "
+            if (
+                not before.isalnum()
+                and before != "_"
+                and not after.isalnum()
+                and after != "_"
+            ):
                 new_line += replacement
                 i += len(name)
                 continue
@@ -250,12 +300,20 @@ def safe_replace(line: str, name: str, replacement: str) -> str:
         i += 1
     return new_line
 
-def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base_dir: Optional[str] = None, is_main: bool = True):
+
+def load_with_imports_renamed(
+    path: str,
+    loaded: Optional[Set[str]] = None,
+    base_dir: Optional[str] = None,
+    is_main: bool = True,
+):
     if loaded is None:
         loaded = set()
 
     # exe dir (global modules)
-    exe_dir = os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__))
+    exe_dir = os.path.dirname(
+        sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__)
+    )
 
     if base_dir is None:
         base_dir = os.path.dirname(os.path.abspath(path))
@@ -266,8 +324,8 @@ def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base
     loaded.add(norm_path)
 
     if not os.path.exists(path):
-        print(f"[Py++] Warning: file '{path}' not found")
-        return ""
+        print(f"[Py++] Error: file '{path}' not found")
+        sys.exit(404)
 
     with open(path, "r", encoding="utf-8") as f:
         raw_src = f.read()
@@ -289,34 +347,46 @@ def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base
             imp_target = stripped[4:].strip()
 
             # 1️⃣ check exe_dir/modules
-            submod_path = os.path.join(exe_dir, "modules", imp_target + ".pypp")
+            submod_path = os.path.join(exe_dir, "modules", imp_target)
             # 2️⃣ check in standard installation directory C:\pypp (where setup installs)
             if not os.path.exists(submod_path):
                 standard_install_path = r"C:\pypp"
-                submod_path = os.path.join(standard_install_path, "modules", imp_target + ".pypp")
+                submod_path = os.path.join(
+                    standard_install_path, "modules", imp_target
+                )
             # 3️⃣ fallback to local directory of current file
             if not os.path.exists(submod_path):
-                submod_path = os.path.join(base_dir, imp_target + ".pypp")
+                submod_path = os.path.join(base_dir, imp_target)
 
             if os.path.exists(submod_path):
-                out_lines.append(load_with_imports_renamed(submod_path, loaded, os.path.dirname(submod_path), is_main=False))
+                # if the submodule is a directory
+                if os.path.isdir(submod_path):
+                    submod_path = os.path.join(submod_path, "__init__.pypp")
+                out_lines.append(
+                    load_with_imports_renamed(
+                        submod_path, loaded, os.path.dirname(submod_path), is_main=False
+                    )
+                )
             else:
-                print(f"[Py++] Warning: module '{imp_target}' not found in global or local paths")
+                print(
+                    f"[Py++] Error: module '{imp_target}' not found in global or local paths"
+                )
+                sys.exit(404)
 
             continue
 
         # detect funcs
         if mod_name:
             m = re.match(
-                r'^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+->\s+(.*?)$',
-                stripped
+                r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+->\s+(.*?)$",
+                stripped,
             )
             if m:
                 # Group 2 is the function name
                 func_names.append(m.group(2))
                 # Convert the function definition to include the module prefix
                 const, name, args, rettype = m.groups()
-                const_prefix = 'const ' if const else ''
+                const_prefix = "const " if const else ""
                 # Replace the function definition with the prefixed version
                 cpp_line = f"{const_prefix}fn {mod_name}_{name}({args}) -> {rettype}"
                 out_lines.append(cpp_line)
@@ -325,8 +395,8 @@ def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base
         # detect globals
         if mod_name:
             v = re.match(
-                r'^(?:const\s+)?(int|float|double|char|bool|auto|std::string|std::vector<[^>]+>)\s+([a-zA-Z0-9_]\w*)(\s*)?(=.*)?$',
-                stripped
+                r"^(?:const\s+)?(int|float|double|char|bool|auto|std::string|std::vector<[^>]+>)\s+([a-zA-Z0-9_]\w*)(\s*)?(=.*)?$",
+                stripped,
             )
             if v:
                 var_names.append(v.group(2))
@@ -339,15 +409,19 @@ def load_with_imports_renamed(path: str, loaded: Optional[Set[str]] = None, base
         all_symbols = func_names + var_names
         for name in all_symbols:
             renamed = f"{mod_name}_{name}"
-            combined = "\n".join(safe_replace(l, name, renamed) for l in combined.splitlines())
+            combined = "\n".join(
+                safe_replace(line, name, renamed) for line in combined.splitlines()
+            )
 
         print(f"Imported {mod_name} ({len(func_names)} funcs, {len(var_names)} vars)")
 
     return combined
 
+
 # ---------------------------------------------------------------------------
 #  Preprocessor: simple defines + single-arg macros
 # ---------------------------------------------------------------------------
+
 
 def preprocess_defines(source: str) -> str:
     # allow multiple args inside parentheses
@@ -356,14 +430,14 @@ def preprocess_defines(source: str) -> str:
 
     prelude = [
         "define __argcv__ int argc, char** argv",
-        "define strvec std::vector<std::string>", 
-        "define vec std::vector"
-    ]        
+        "define strvec std::vector<std::string>",
+        "define vec std::vector",
+    ]
 
-    source = prelude + source.splitlines()
+    source_lines: List[str] = prelude + source.splitlines()
 
     lines = []
-    for line in source:
+    for line in source_lines:
         m = define_pattern.match(line.strip())
         if m:
             name, args_str, value = m.groups()
@@ -382,6 +456,7 @@ def preprocess_defines(source: str) -> str:
         if args:
             # match name( ... )
             pattern = rf"\b{name}\(([^)]*)\)"
+
             def repl(m):
                 call_args = [a.strip() for a in m.group(1).split(",")]
                 result = value
@@ -389,12 +464,14 @@ def preprocess_defines(source: str) -> str:
                     # replace arg name with call value
                     result = re.sub(rf"\b{re.escape(arg_name)}\b", call_val, result)
                 return f"{result}"
+
             processed = re.sub(pattern, repl, processed)
         else:
             # plain replacement
             processed = re.sub(rf"\b{name}\b", value, processed)
 
     return processed
+
 
 def expand_ranges_outside_strings(src: str) -> str:
     result = ""
@@ -409,7 +486,7 @@ def expand_ranges_outside_strings(src: str) -> str:
             if not in_str:
                 in_str = True
                 quote_char = c
-            elif src[i - 1] != '\\' and c == quote_char:
+            elif src[i - 1] != "\\" and c == quote_char:
                 in_str = False
             result += c
             i += 1
@@ -422,7 +499,16 @@ def expand_ranges_outside_strings(src: str) -> str:
                 a, b = m.group(1), m.group(2)
                 c = m.group(3) or 1
                 # replace with range-based initializer list
-                result += "{" + ",".join(str(j) for j in range(int(a), int(b)+1 if int(b) > 0 else int(b)-1, int(c))) + "}"
+                result += (
+                    "{"
+                    + ",".join(
+                        str(j)
+                        for j in range(
+                            int(a), int(b) + 1 if int(b) > 0 else int(b) - 1, int(c)
+                        )
+                    )
+                    + "}"
+                )
                 i += m.end()
                 continue
 
@@ -430,13 +516,16 @@ def expand_ranges_outside_strings(src: str) -> str:
         i += 1
     return result
 
+
 # ---------------------------------------------------------------------------
 #  Block and line transpiler
 # ---------------------------------------------------------------------------
 
+
 class BlockFrame:
     def __init__(self, kind: str):
         self.kind = kind
+
 
 def split_commas(s: str) -> List[str]:
     parts = []
@@ -447,38 +536,53 @@ def split_commas(s: str) -> List[str]:
             parts.append(current.strip())
             current = ""
         else:
-            if c in "\"'": inside = not inside
+            if c in "\"'":
+                inside = not inside
             current += c
     if current.strip():
         parts.append(current.strip())
     return parts
 
+
 # ---------------------------------------------------------------------------
 #  MAIN TRANSPILER
 # ---------------------------------------------------------------------------
 
+
 def transpile_paren_blocks_to_cpp(source: str) -> str:
+    source = (
+        """
+fn sstoi(std::string s) -> int
+    try
+        return std::stoi(s)
+    catch ...
+        return -1
+    end
+end
+"""
+        + source
+    )
     lines = expand_ranges_outside_strings(source).splitlines()
 
     out_lines: List[str] = [
-        '#include <iostream>',
-        '#include <cstdint>',
-        '#include <cstdlib>', 
-        '#include <limits>',
-        '#include <string>',
-        '#include <vector>',
-        '''#if __cplusplus >= 201703L
+        "#include <iostream>",
+        "#include <cstdint>",
+        "#include <cstdlib>",
+        "#include <limits>",
+        "#include <string>",
+        "#include <vector>",
+        "#include <cstring>",
+        """#if __cplusplus >= 201703L
     #include <filesystem>
     namespace fs = std::filesystem;
 #else
     #include <experimental/filesystem>
     namespace fs = std::experimental::filesystem;
-#endif''',
-        '#define __THIS__ fs::path(__argv[0])',
+#endif""",
+        "#define __THIS__ fs::path(__argv[0])",
     ]
 
-    vartypes: Dict[str, str] = {}
-    block_stack: List[BlockFrame] = [BlockFrame('root')]
+    block_stack: List[BlockFrame] = [BlockFrame("root")]
 
     i = 0
     while i < len(lines):
@@ -488,17 +592,22 @@ def transpile_paren_blocks_to_cpp(source: str) -> str:
             continue
 
         # Check if the original line contains a vector comprehension
-        vec_comp_pattern = r'((?:std::vector<[^>]+>|std::vector<std::string>)\s+)?(\w+)\s*=\s*\((.+?)\s+foreach\s+(\w+)\s+(.+?)\)'
-        vec_match = re.search(vec_comp_pattern, lines[i-1])
+        vec_comp_pattern = r"((?:std::vector<[^>]+>|std::vector<std::string>)\s+)?(\w+)\s*=\s*\((.+?)\s+foreach\s+(\w+)\s+(.+?)\)"
+        vec_match = re.search(vec_comp_pattern, lines[i - 1])
         if vec_match:
-            full_type = vec_match.group(1)  # Full type like std::vector<T> (can be None)
-            varname = vec_match.group(2)    # Variable name
-            expr = vec_match.group(3)       # Expression to evaluate
+            full_type = vec_match.group(
+                1
+            )  # Full type like std::vector<T> (can be None)
+            varname = vec_match.group(2)  # Variable name
+            expr = vec_match.group(3)  # Expression to evaluate
             foreach_var = vec_match.group(4)  # Loop variable
-            container = vec_match.group(5)    # Container to iterate over
+            container = vec_match.group(5)  # Container to iterate over
 
-            out_lines.append(f"{full_type.strip()} {varname};")
-            
+            if full_type:
+                out_lines.append(f"{full_type.strip()} {varname} = {{}};")
+            else:
+                out_lines.append(f"{varname} = {{}};")
+
             out_lines.append(f"for (auto &{foreach_var} : {container}) {{")
             out_lines.append(f"    {varname}.push_back({expr});")
             out_lines.append("}")
@@ -515,23 +624,34 @@ def transpile_paren_blocks_to_cpp(source: str) -> str:
                 out_lines.append("};" if is_cls else "}")
             continue
 
-        m_if = re.match(r'^(if|elif)\s+(.*)$', s)
-        m_else = re.match(r'^else$', s)
-        m_cls = re.match(r'^cls\s([a-zA-Z0-9_]+)$', s)
-        m_repeat = re.match(r'^repeat\s+(.+?)$', s)
-        m_while = re.match(r'^while\s+(.*)$', s)
-        m_foreach = re.match(r'^foreach\s+(\w+)\s+(.*)$', s)
-        m_forever = re.match(r'^forever$', s)
-        m_funcdef = re.match(r'^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+->\s+(.*?)$', s)
+        m_if = re.match(r"^(if|elif)\s+(.*)$", s)
+        m_else = re.match(r"^else$", s)
+        m_cls = re.match(r"^cls\s([a-zA-Z0-9_]+)$", s)
+        m_repeat = re.match(r"^repeat\s+(.+?)$", s)
+        m_while = re.match(r"^while\s+(.*)$", s)
+        m_try = re.match(r"^try$", s)
+        m_catch = re.match(r"^catch\s+(.*)$", s)
+        m_foreach = re.match(r"^foreach\s+(\w+)\s+(.*)$", s)
+        m_forever = re.match(r"^forever$", s)
+        m_funcdef = re.match(
+            r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)?\s*\((.*)\)\s+->\s+(.*?)?$", s
+        )
 
         if m_foreach:
             var, arr = m_foreach.groups()
             if ".." in arr:
-                arr = "{" + ",".join(str(i) for i in range(int(arr.split("..")[0]), int(arr.split("..")[1]))) + "}"
-            out_lines.append(f'for (auto &{var} : {arr}) {{')
+                arr = (
+                    "{"
+                    + ",".join(
+                        str(i)
+                        for i in range(int(arr.split("..")[0]), int(arr.split("..")[1]))
+                    )
+                    + "}"
+                )
+            out_lines.append(f"for (auto &{var} : {arr}) {{")
             block_stack.append(BlockFrame("foreach"))
             continue
-        if m_while:
+        elif m_while:
             cond = m_while.group(1)
             out_lines.append(f"while ({cond}) {{")
             block_stack.append(BlockFrame("while"))
@@ -539,24 +659,35 @@ def transpile_paren_blocks_to_cpp(source: str) -> str:
         elif m_funcdef:
             const, name, args, rettype = m_funcdef.groups()
             # Check if any of the required components are None (not matched)
-            if name is None or rettype is None:
+            if not name or not rettype:
                 print(f"[X] Error at line {i}\n{s} <- missing parameters")
                 break
 
-            const_prefix = 'const ' if const else ''
+            const_prefix = "const " if const else ""
             out_lines.append(f"{const_prefix}{rettype} {name}({args}) {{")
             block_stack.append(BlockFrame("funcdef"))
             continue  # Don't add the original line again
         elif m_if:
             kw, cond = m_if.groups()
-            out_lines.append(f"{'if' if kw=='if' else '} else if'} ({cond}) {{")
-            if kw == "elif": block_stack.pop()
+            out_lines.append(f"{'if' if kw == 'if' else '} else if'} ({cond}) {{")
+            if kw == "elif":
+                block_stack.pop()
             block_stack.append(BlockFrame(kw))
             continue
         elif m_else:
             out_lines.append("} else {")
             block_stack.pop()
             block_stack.append(BlockFrame("else"))
+            continue
+        elif m_try:
+            out_lines.append("try {")
+            block_stack.append(BlockFrame("try"))
+            continue
+        elif m_catch:
+            exception = m_catch.group(1)
+            out_lines.append(f"}} catch ({exception}) {{")
+            block_stack.pop()
+            block_stack.append(BlockFrame("catch"))
             continue
         elif m_forever:
             out_lines.append("while(1) {")
@@ -573,36 +704,54 @@ def transpile_paren_blocks_to_cpp(source: str) -> str:
             block_stack.append(BlockFrame("cls"))
             continue
 
-        if s.startswith("print"):
-            inside = s[s.find("(")+1:s.rfind(")")]
+        if s.startswith("print("):
+            inside = s[s.find("(") + 1 : s.rfind(")")]
             args = split_commas(inside)
             out_lines.append("std::cout << " + " << ".join(args) + ";")
             continue
+    
+        if s.startswith("assert:"):
+            statement = s[7:].strip()
+            tmp = str(uuid.uuid4()).replace("-", "")
+            out_lines.append(f"bool ___{tmp} = ({statement});")
+            out_lines.append(f"if (!___{tmp}) {{")
+            out_lines.append(
+                f'std::cout << "Assertion failed:\\n'
+                f'    {statement}\\n'
+                f'Result: " << ___{tmp} << std::endl;'
+            )
+            out_lines.append("    std::exit(1);")
+            out_lines.append("}")
+            continue
 
-        if s.startswith("input") or s.startswith("numinput"):
+        if s.startswith("input(") or s.startswith("numinput("):
             numeric = s.startswith("numinput")
-            inside = s[s.find("(")+1:s.rfind(")")]
+            inside = s[s.find("(") + 1 : s.rfind(")")]
             parts = split_commas(inside)
             if len(parts) >= 2:
                 var_name = parts[1]
                 prompt = parts[0]
-                out_lines.append(f'std::cout << {prompt} << std::flush;')
+                out_lines.append(f"std::cout << {prompt} << std::flush;")
                 if numeric:
-                    out_lines.append(f'std::cin >> {var_name};')
-                    out_lines.append('std::cin.ignore(std::numeric_limits<std::streamsize>::max(), \'\\n\');')
+                    out_lines.append(f"std::cin >> {var_name};")
+                    out_lines.append(
+                        "std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\\n');"
+                    )
                 else:
-                    out_lines.append(f'std::getline(std::cin, {var_name});')
+                    out_lines.append(f"std::getline(std::cin, {var_name});")
             continue
 
-        if not s.endswith((';', '{', '}', '>', ',')) and not s.startswith('#'):
+        if not s.endswith((";", "{", "}", ">", ",")) and not s.startswith("#"):
             s += ";"
         out_lines.append(s)
+        print_progress(i+1, len(lines)-2)
 
     while len(block_stack) > 1:
         out_lines.append("}")
         block_stack.pop()
 
     return "\n".join(out_lines)
+
 
 # ---------------------------------------------------------------------------
 #  Entry point
@@ -622,26 +771,33 @@ if __name__ == "__main__":
         sys.exit(1)
 
     src = preprocess_defines(load_with_imports_renamed(sys.argv[1]))
-    
+
     # Process vector comprehensions during transpilation by modifying the transpile_paren_blocks_to_cpp function approach
     # Since we already modified the function to handle vector comprehensions, now we just need to call it
     out_cpp = transpile_paren_blocks_to_cpp(src)
     with open("out.cpp", "w", encoding="utf-8") as f:
         f.write(out_cpp)
 
-    if not "--dump-asm" in sys.argv:
+    if "--dump-asm" not in sys.argv:
         result = subprocess.run(
-            ["g++", "-std=c++17", "-O3", "out.cpp", "-o", f"{sys.argv[1][:-5]}.exe" if os.name == "nt" else sys.argv[1][:-5]],
+            [
+                "g++",
+                "-std=c++17",
+                "-O3",
+                "out.cpp",
+                "-o",
+                f"{sys.argv[1][:-5]}.exe" if os.name == "nt" else sys.argv[1][:-5],
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
     else:
         result = subprocess.run(
             ["g++", "-S", "-std=c++17", "-O3", "out.cpp", "-o", "out.s"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
 
     if result.returncode != 0:
@@ -650,5 +806,5 @@ if __name__ == "__main__":
         print("out.cpp preserved for debugging")
     else:
         print("V Compilation successful!")
-        if not "-p" in sys.argv:
+        if "-p" not in sys.argv:
             os.remove("out.cpp")
