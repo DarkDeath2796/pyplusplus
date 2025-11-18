@@ -172,7 +172,7 @@ end
   `__argcv__` expands to `int argc, char** argv`
 
 - **Assertions:**
-  `assert: condition` — throws an error if `condition` is false
+  `assert: condition (optional: @@@ message)` — throws an error if `condition` is false
 
 ---
 

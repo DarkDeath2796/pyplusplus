@@ -633,8 +633,9 @@ end
         m_foreach = re.match(r"^foreach\s+(\w+)\s+(.*)$", s)
         m_forever = re.match(r"^forever$", s)
         m_funcdef = re.match(
-            r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)?\s*\((.*)\)\s+->\s+(.*?)?$", s
+            r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+->\s+(.*?)$", s
         )
+        m_lambda = re.match(r"lam:\s*([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+=>\s+(.*?)$", s)
 
         if m_foreach:
             var, arr = m_foreach.groups()
@@ -649,6 +650,10 @@ end
                 )
             out_lines.append(f"for (auto &{var} : {arr}) {{")
             block_stack.append(BlockFrame("foreach"))
+            continue
+        elif m_lambda:
+            name, args, body = m_lambda.groups()
+            out_lines.append(f"auto {name} = [&]({args}) {{return {body};}};")
             continue
         elif m_while:
             cond = m_while.group(1)
@@ -710,19 +715,29 @@ end
             continue
     
         if s.startswith("assert:"):
-            statement = s[7:].strip()
+            args = s[7:].split("@@@")
+            statement = args[0].strip()
+            message = args[1].strip() if len(args) > 1 else ""
             tmp = str(uuid.uuid4()).replace("-", "")
             out_lines.append(f"bool ___{tmp} = ({statement});")
+            cmsg = message.strip(' "\'')
             out_lines.append(f"if (!___{tmp}) {{")
             out_lines.append(
-                f'std::cout << "Assertion failed:\\n'
-                f'    {statement}\\n'
-                f'Result: " << ___{tmp} << std::endl;'
-            )
+                    f"std::cout << \"Assertion failed:\\n    {statement}\\nError: {cmsg}\\nResult: \" << ___{tmp} << std::endl;"
+                )
             out_lines.append("    std::exit(1);")
             out_lines.append("}")
             continue
-
+        if s.startswith("assert_fix:"):
+            args = s[11:].split("=>")
+            statement = args[0].strip()
+            fix = args[1].strip()
+            tmp = str(uuid.uuid4()).replace("-", "")
+            out_lines.append(f"bool ___{tmp} = ({statement});")
+            out_lines.append(f"if (!___{tmp}) {{")
+            out_lines.append(f"    {fix};")
+            out_lines.append("}")
+            continue
         if s.startswith("input(") or s.startswith("numinput("):
             numeric = s.startswith("numinput")
             inside = s[s.find("(") + 1 : s.rfind(")")]
