@@ -636,6 +636,7 @@ end
             r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+->\s+(.*?)$", s
         )
         m_lambda = re.match(r"lam:\s*([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+=>\s+(.*?)$", s)
+        m_return_tuple = re.match(r"^return\s+(.*);$", s)
 
         if m_foreach:
             var, arr = m_foreach.groups()
@@ -650,6 +651,9 @@ end
                 )
             out_lines.append(f"for (auto &{var} : {arr}) {{")
             block_stack.append(BlockFrame("foreach"))
+            continue
+        elif m_return_tuple:
+            out_lines.append(f"return std::make_tuple({m_return_tuple.group(1)});")
             continue
         elif m_lambda:
             name, args, body = m_lambda.groups()
