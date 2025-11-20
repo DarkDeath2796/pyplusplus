@@ -194,7 +194,7 @@ fn split(const std::string& s, char delimiter) -> strvec
         start = end + 1;
     end
     result.push_back(s.substr(start));
-    return result;
+    return result
 end
 """,
         "modules/std/__init__.pypp": """
@@ -431,6 +431,7 @@ def preprocess_defines(source: str) -> str:
         "define __argcv__ int argc, char** argv",
         "define strvec std::vector<std::string>",
         "define vec std::vector",
+        "define strT std::string",
     ]
 
     source_lines: List[str] = prelude + source.splitlines()
@@ -548,7 +549,7 @@ def split_commas(s: str) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
-def transpile_paren_blocks_to_cpp(source: str) -> str:
+def transpile_paren_blocks_to_cpp(source: str, original: bool = True) -> str:
     source = (
         """
 fn sstoi(std::string s) -> int
@@ -560,7 +561,7 @@ fn sstoi(std::string s) -> int
 end
 """
         + source
-    )
+    ) if original else source
     lines = expand_ranges_outside_strings(source).splitlines()
 
     out_lines: List[str] = [
@@ -579,7 +580,7 @@ end
     namespace fs = std::experimental::filesystem;
 #endif""",
         "#define __THIS__ fs::path(__argv[0])",
-    ]
+    ] if original else []
 
     block_stack: List[BlockFrame] = [BlockFrame("root")]
 
@@ -637,6 +638,12 @@ end
         )
         m_lambda = re.match(r"lam:\s*([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+=>\s+(.*?)$", s)
         m_return_tuple = re.match(r"^return\s+(.*);$", s)
+
+        semicolon_split = s.split(";")
+        if len(semicolon_split) > 1:
+            for ssl in semicolon_split:
+                out_lines.append(transpile_paren_blocks_to_cpp(ssl, original=False).strip())
+            continue
 
         if m_foreach:
             var, arr = m_foreach.groups()

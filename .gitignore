@@ -13,3 +13,5 @@ icon.ico
 ideas.txt
 py++.spec
 out.cpp
+
+*.pypp
