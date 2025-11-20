@@ -7,18 +7,6 @@ import uuid
 from typing import List, Set, Optional
 
 
-def print_progress(done: int, total: int) -> None:
-    bar_length = 60
-    filled_length = int(round(done / total * bar_length))
-    percent = round(done / total * 100, 2)
-    bar = '>' * filled_length + ' ' * (bar_length - filled_length)
-    sys.stdout.write(f'\r[{bar}] {percent}%')
-    sys.stdout.flush()
-
-    if done == total:
-        sys.stdout.write('\n')
-
-
 def add_to_path_win(target_dir: str):
     subprocess.run(
         [
@@ -769,7 +757,6 @@ end
         if not s.endswith((";", "{", "}", ">", ",")) and not s.startswith("#"):
             s += ";"
         out_lines.append(s)
-        print_progress(i+1, len(lines)-2)
 
     while len(block_stack) > 1:
         out_lines.append("}")
