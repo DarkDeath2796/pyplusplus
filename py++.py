@@ -26,17 +26,17 @@ def setup_install(target_dir: str):
 #include <fstream>
 #include <vector>
 
-fn read_file(const std::string &path) -> std::string
+fn read_file(const std::string &path) strT
     std::ifstream f(path)
     return {std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
 end
 
-fn write_file(const std::string &path, const std::string &content) -> void
+fn write_file(const std::string &path, const std::string &content)
     std::ofstream f(path)
     f << content
 end
 
-fn read_lines(const std::string &path) -> strvec
+fn read_lines(const std::string &path) strvec
     std::ifstream f(path)
     if !f.is_open()
         print("Failed to open file: ", path, "\\n")
@@ -52,9 +52,13 @@ fn read_lines(const std::string &path) -> strvec
     return lines
 end
 
-fn appnd_to_file(const std::string &path, const std::string &content) -> void
+fn appnd_to_file(const std::string &path, const std::string &content) 
     std::ofstream f(path, std::ios::app)
     f << content
+end
+
+fn exists(const std::string &path) bool
+    return std::ifstream(path).good()
 end
 """,
         "modules/std/time.pypp": """
@@ -64,20 +68,20 @@ end
 #include <sstream>
 #include <iomanip>
 
-fn now_() -> double
+fn now_() double
     using namespace std::chrono;
     return duration<double>(steady_clock::now().time_since_epoch()).count()
 end
 
-fn sleep(double seconds) -> void
+fn sleep(double seconds) 
     std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
 end
 
-fn since(double start) -> double
+fn since(double start) double
     return now_() - start
 end
 
-fn format(const std::string& fmt) -> std::string
+fn format(const std::string& fmt) strT
     std::time_t t = std::time(nullptr);
     std::tm tm = *std::localtime(&t);
     std::ostringstream oss;
@@ -85,7 +89,7 @@ fn format(const std::string& fmt) -> std::string
     return oss.str()
 end
 
-fn wait_until(double target) -> void
+fn wait_until(double target)
     double diff = target - now_();
     if diff > 0
         sleep(diff)
@@ -97,20 +101,20 @@ end
 imp std/time.pypp
 
 
-fn rand01() -> double
+fn rand01() double
     double __seed = fmod(time_now_() * 6364136223846793005.0 * time_since(1) + 1.0, 1e9)
     return fmod(__seed / 1e9, 1.0)
 end
 
-fn randint(int a, int b) -> int
+fn randint(int a, int b) int
     return a + (int)(rand01() * (b - a + 1))
 end
 
-fn uniform(double a, double b) -> double
+fn uniform(double a, double b) double
     return a + rand01() * (b - a)
 end
 
-fn randlen(int length) -> int
+fn randlen(int length) int
     if length <= 0
         return 0
     end
@@ -131,7 +135,7 @@ end
 #include <codecvt>
 #endif
 
-fn get_username() -> std::string
+fn get_username() strT
 #ifdef _WIN32
     wchar_t buffer[256];
     DWORD size = 256;
@@ -152,7 +156,7 @@ end
 #include <cctype>
 #include <string>
 
-fn trim(const std::string& s) -> std::string
+fn trim(const std::string& s) strT
     size_t start = 0
     while start < s.size() && std::isspace(s[start]) 
         start++
@@ -164,17 +168,17 @@ fn trim(const std::string& s) -> std::string
     return s.substr(start, end - start)
 end
 
-fn lower(std::string s) -> std::string
+fn lower(std::string s) strT
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
     return s
 end
 
-fn upper(std::string s) -> std::string
+fn upper(std::string s) strT
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::toupper(c); });
     return s
 end
 
-fn split(const std::string& s, char delimiter) -> strvec
+fn split(const std::string& s, char delimiter) strvec
     strvec result;
     size_t start = 0, end;
     while (end = s.find(delimiter, start)) != std::string::npos
@@ -182,6 +186,17 @@ fn split(const std::string& s, char delimiter) -> strvec
         start = end + 1;
     end
     result.push_back(s.substr(start));
+    return result
+end
+
+fn join(const strvec& s, char delimiter) strT
+    std::string result;
+    for (size_t i = 0; i < s.size(); i++) {
+        result += s[i];
+        if (i < s.size() - 1)
+            result += delimiter;
+        end
+    }
     return result
 end
 """,
@@ -293,6 +308,7 @@ def load_with_imports_renamed(
     loaded: Optional[Set[str]] = None,
     base_dir: Optional[str] = None,
     is_main: bool = True,
+    apply_macros_everywhere: bool = False,
 ):
     if loaded is None:
         loaded = set()
@@ -317,7 +333,12 @@ def load_with_imports_renamed(
     with open(path, "r", encoding="utf-8") as f:
         raw_src = f.read()
 
-    src = preprocess_defines(raw_src)
+    if apply_macros_everywhere:
+        src = raw_src
+    else:
+        src = preprocess_defines(raw_src)
+
+
     out_lines = []
 
     mod_name = None if is_main else os.path.splitext(os.path.basename(path))[0]
@@ -351,7 +372,7 @@ def load_with_imports_renamed(
                     submod_path = os.path.join(submod_path, "__init__.pypp")
                 out_lines.append(
                     load_with_imports_renamed(
-                        submod_path, loaded, os.path.dirname(submod_path), is_main=False
+                        submod_path, loaded, os.path.dirname(submod_path), is_main=False, apply_macros_everywhere=apply_macros_everywhere
                     )
                 )
             else:
@@ -365,7 +386,7 @@ def load_with_imports_renamed(
         # detect funcs
         if mod_name:
             m = re.match(
-                r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+->\s+(.*?)$",
+                r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s*(.*?)?$",
                 stripped,
             )
             if m:
@@ -375,7 +396,7 @@ def load_with_imports_renamed(
                 const, name, args, rettype = m.groups()
                 const_prefix = "const " if const else ""
                 # Replace the function definition with the prefixed version
-                cpp_line = f"{const_prefix}fn {mod_name}_{name}({args}) -> {rettype}"
+                cpp_line = f"{const_prefix}fn {mod_name}_{name}({args}) {rettype}"
                 out_lines.append(cpp_line)
                 continue  # Skip adding the original line
 
@@ -401,6 +422,10 @@ def load_with_imports_renamed(
             )
 
         print(f"Imported {mod_name} ({len(func_names)} funcs, {len(var_names)} vars)")
+
+    if apply_macros_everywhere: 
+        combined = preprocess_defines(combined)
+
 
     return combined
 
@@ -515,12 +540,12 @@ class BlockFrame:
         self.kind = kind
 
 
-def split_commas(s: str) -> List[str]:
+def split_(s: str, sep: str = ",") -> List[str]:
     parts = []
     inside = False
     current = ""
     for c in s:
-        if c == "," and not inside:
+        if c == sep and not inside:
             parts.append(current.strip())
             current = ""
         else:
@@ -540,7 +565,7 @@ def split_commas(s: str) -> List[str]:
 def transpile_paren_blocks_to_cpp(source: str, original: bool = True) -> str:
     source = (
         """
-fn sstoi(std::string s) -> int
+fn sstoi(std::string s) int
     try
         return std::stoi(s)
     catch ...
@@ -622,12 +647,12 @@ end
         m_foreach = re.match(r"^foreach\s+(\w+)\s+(.*)$", s)
         m_forever = re.match(r"^forever$", s)
         m_funcdef = re.match(
-            r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+->\s+(.*?)$", s
+            r"^(?:(const)\s+)?fn\s+([a-zA-Z0-9_]\w*)\s*\((.*)\)\s*(.*?)?$", s
         )
         m_lambda = re.match(r"lam:\s*([a-zA-Z0-9_]\w*)\s*\((.*)\)\s+=>\s+(.*?)$", s)
-        m_return_tuple = re.match(r"^return\s+(.*);$", s)
+        m_return_tuple = re.match(r"^return\s+([a-zA-Z0-9_,\s]+]);$", s)
 
-        semicolon_split = s.split(";")
+        semicolon_split = split_(s, "§")
         if len(semicolon_split) > 1:
             for ssl in semicolon_split:
                 out_lines.append(transpile_paren_blocks_to_cpp(ssl, original=False).strip())
@@ -660,14 +685,13 @@ end
             block_stack.append(BlockFrame("while"))
             continue
         elif m_funcdef:
-            const, name, args, rettype = m_funcdef.groups()
-            # Check if any of the required components are None (not matched)
-            if not name or not rettype:
-                print(f"[X] Error at line {i}\n{s} <- missing parameters")
-                break
-
+            const = m_funcdef.group(1)
+            name = m_funcdef.group(2)
+            args = m_funcdef.group(3)
+            rettype = m_funcdef.group(4)
+            
             const_prefix = "const " if const else ""
-            out_lines.append(f"{const_prefix}{rettype} {name}({args}) {{")
+            out_lines.append(f"{const_prefix}{rettype or 'void'} {name}({args}) {{")
             block_stack.append(BlockFrame("funcdef"))
             continue  # Don't add the original line again
         elif m_if:
@@ -709,7 +733,7 @@ end
 
         if s.startswith("print("):
             inside = s[s.find("(") + 1 : s.rfind(")")]
-            args = split_commas(inside)
+            args = split_(inside)
             out_lines.append("std::cout << " + " << ".join(args) + ";")
             continue
     
@@ -740,7 +764,7 @@ end
         if s.startswith("input(") or s.startswith("numinput("):
             numeric = s.startswith("numinput")
             inside = s[s.find("(") + 1 : s.rfind(")")]
-            parts = split_commas(inside)
+            parts = split_(inside)
             if len(parts) >= 2:
                 var_name = parts[1]
                 prompt = parts[0]
@@ -760,7 +784,7 @@ end
 
     while len(block_stack) > 1:
         out_lines.append("}")
-        block_stack.pop()
+        print(f"WARNING: closing unclosed {block_stack.pop().kind} block")
 
     return "\n".join(out_lines)
 
@@ -786,7 +810,7 @@ if __name__ == "__main__":
         print("please install the g++ compiler")
         sys.exit(1)
 
-    src = preprocess_defines(load_with_imports_renamed(sys.argv[1]))
+    src = preprocess_defines(load_with_imports_renamed(sys.argv[1], apply_macros_everywhere="-d" in sys.argv))
 
     # Process vector comprehensions during transpilation by modifying the transpile_paren_blocks_to_cpp function approach
     # Since we already modified the function to handle vector comprehensions, now we just need to call it
@@ -799,7 +823,7 @@ if __name__ == "__main__":
             [
                 "g++",
                 "-std=c++17",
-                "-O3",
+                "-O3" if "-r" not in sys.argv else "-O0",
                 "out.cpp",
                 "-o",
                 f"{sys.argv[1][:-5]}.exe" if os.name == "nt" else sys.argv[1][:-5],
